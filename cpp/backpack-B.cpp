@@ -517,7 +517,7 @@ Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 1
 void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
                                  std::vector<int> activeIDs) {
 
-  auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/backpack-style.urdf", "Base"));
+  auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_basic.urdf", "Base"));
   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
       {"Base", "Link_0R", "Link_1R", "Link_2R", "Link_3R", "Link_4R", "Link_5R", "Link_6R", "Link_0L", "Link_1L",
        "Link_2L", "Link_3L", "Link_4L", "Link_5L", "Link_6L"},

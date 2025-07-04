@@ -517,21 +517,21 @@ Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 1
 void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
                                  std::vector<int> activeIDs) {
 
-  // auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm.urdf", "Base"));
-  // auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
-  //     {"Base", "Link_0R", "Link_1R", "Link_2R", "Link_3R", "Link_4R", "Link_5R", "Link_6R", "Link_0L", "Link_1L",
-  //      "Link_2L", "Link_3L", "Link_4L", "Link_5L", "Link_6L"},
-  //     {"J0_Shoulder_Pitch_R", "J1_Shoulder_Roll_R", "J2_Shoulder_Yaw_R", "J3_Elbow_R", "J4_Wrist_Yaw1_R",
-  //      "J5_Wrist_Pitch_R", "J6_Wrist_Yaw2_R", "J7_Shoulder_Pitch_L", "J8_Shoulder_Roll_L", "J9_Shoulder_Yaw_L",
-  //      "J10_Elbow_L", "J11_Wrist_Yaw1_L", "J12_Wrist_Pitch_L", "J13_Wrist_Yaw2_L"});
-  
-  auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_new.urdf", "MA_Base"));
+  auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_basic.urdf", "Base"));
   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
-      {"MA_Base", "MA_Link_J1R", "MA_Link_J2R", "MA_Link_J3R", "MA_Link_J4R", "MA_Link_J5R", "MA_Link_J6R", "MA_Link_J7R", "MA_Link_J1L", "MA_Link_J2L",
-       "MA_Link_J3L", "MA_Link_J4L", "MA_Link_J5L", "MA_Link_J6L", "MA_Link_J7L"},
-      {"J1_Shoulder_Pitch", "J2_Shoulder_Roll", "J3_Shoulder_Yaw", "J4_Elbow_Pitch", "J4_Wrist_Yaw1",
-       "J5_Wrist_Pitch", "J6_Wrist_Yaw2", "J7_Shoulder_Pitch", "J8_Shoulder_Roll", "J9_Shoulder_Yaw",
-       "J10_Elbow", "J11_Wrist_Yaw1", "J12_Wrist_Pitch", "J13_Wrist_Yaw2"});
+      {"Base", "Link_0R", "Link_1R", "Link_2R", "Link_3R", "Link_4R", "Link_5R", "Link_6R", "Link_0L", "Link_1L",
+       "Link_2L", "Link_3L", "Link_4L", "Link_5L", "Link_6L"},
+      {"J0_Shoulder_Pitch_R", "J1_Shoulder_Roll_R", "J2_Shoulder_Yaw_R", "J3_Elbow_R", "J4_Wrist_Yaw1_R",
+       "J5_Wrist_Pitch_R", "J6_Wrist_Yaw2_R", "J7_Shoulder_Pitch_L", "J8_Shoulder_Roll_L", "J9_Shoulder_Yaw_L",
+       "J10_Elbow_L", "J11_Wrist_Yaw1_L", "J12_Wrist_Pitch_L", "J13_Wrist_Yaw2_L"});
+  
+//   auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_pinch.urdf", "MA_Base"));
+//   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
+//       {"MA_Base", "MA_Link_J1R", "MA_Link_J2R", "MA_Link_J3R", "MA_Link_J4R", "MA_Link_J5R", "MA_Link_J6R", "MA_Link_J7R", "MA_Link_J1L", "MA_Link_J2L",
+//        "MA_Link_J3L", "MA_Link_J4L", "MA_Link_J5L", "MA_Link_J6L", "MA_Link_J7L"},
+//       {"J1_Shoulder_Pitch", "J2_Shoulder_Roll", "J3_Shoulder_Yaw", "J4_Elbow_Pitch", "J4_Wrist_Yaw1",
+//        "J5_Wrist_Pitch", "J6_Wrist_Yaw2", "J7_Shoulder_Pitch", "J8_Shoulder_Roll", "J9_Shoulder_Yaw",
+//        "J10_Elbow", "J11_Wrist_Yaw1", "J12_Wrist_Pitch", "J13_Wrist_Yaw2"});
 
 
 

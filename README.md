@@ -25,26 +25,20 @@ Repo for Rainbow Robotics Master Arms
 ### Build From Source
 
 ```bash
-git clone --recurse-submodules git@github.com:RainbowRobotics/rby1-sdk.git
+git clone --recurse-submodules https://github.com/RainbowRobotics/rby1-sdk.git
 cd rby1-sdk
 sudo cmake --build --target install --preset conan-release
 #install rby1-sdk in system folder
 ```
 
 ```bash
-git clone --recurse-submodules git@github.com:RainbowRobotics/rby1-examples-teleop.git
+git clone --recurse-submodules https://github.com/RainbowRobotics/rby1-examples-teleop.git
 cd rby1-examples-teleop
 mkdir build
 cd build
 cmake -D CMAKE_BUILD_TYPE=Release ..
 cmake --build .
 ```
-
-```bash
-./build/cpp/backback-style ...
-```
-
-
 
 
 ## C++ Example
