@@ -2,6 +2,21 @@
 Repo for Rainbow Robotics Master Arms
 
 
+
+
+# Get Started Teleoperation Example
+
+
+#### Example Descriptions
+
+| Example      | Description                                                                                 |
+|--------------|---------------------------------------------------------------------------------------------|
+| `backpack-B` | Wearable-type configuration with a basic handle                                             |
+| `stand-B`    | Stand-type configuration with a basic handle                                                |
+| `stand-P`    | Stand-type configuration with a Pinch handle                                                |
+
+---
+
 ### Prerequisites
 
 #### rby1-sdk
@@ -10,11 +25,14 @@ Repo for Rainbow Robotics Master Arms
 ### Build From Source
 
 ```bash
-git@github.com:RainbowRobotics/rby1-examples-teleop.git
-git submodule update --init
+git clone --recurse-submodules git@github.com:RainbowRobotics/rby1-sdk.git
+cd rby1-sdk
+sudo cmake --build --target install --preset conan-release
+#install rby1-sdk in system folder
 ```
 
 ```bash
+git clone --recurse-submodules git@github.com:RainbowRobotics/rby1-examples-teleop.git
 cd rby1-examples-teleop
 mkdir build
 cd build
@@ -24,4 +42,45 @@ cmake --build .
 
 ```bash
 ./build/cpp/backback-style ...
+```
+
+
+
+
+## C++ Example
+
+```c++
+./build/cpp/stand-P <server address> <servo> <mode>
+
+      # example
+      # ./build/cpp/stand-P 192.168.30.1:50051 impedance
+      
+```
+
+#### Option Descriptions
+
+| Option             | Description                                                                 |
+|--------------------|-----------------------------------------------------------------------------|
+| `<server address>` | IP address of the Robot PC                                                  |
+| `<servo>`          | Select the servo to turn on (default = all, except 'head')                  |
+| `<mode>`           | Control mode: choose either `position` (default) or `impedance`             |
+
+
+---
+
+## Variable Descriptions
+
+```c++
+double m_sf = 0.4;
+
+      # Gravity compensation scale factor
+      # 1.0 = 100% compensation
+      # 0.4 = 40% compensation (default)
+
+calc_torque_for_limit_avoid();
+
+      # Applies torque to keep joints within the defined range
+      # Automatically adds torque if joint exceeds its range
+      # You can define custom joint limits inside this function
+      
 ```
