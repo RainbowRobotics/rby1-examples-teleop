@@ -1179,10 +1179,10 @@ int main(int argc, char** argv) {
       Eigen::Vector<double, 7> target_position_right = q_joint_ref.block(0, 0, 7, 1);
       Eigen::Vector<double, 7> acc_limit, vel_limit;
 
-      acc_limit.setConstant(1200.0);
+      acc_limit.setConstant(3600.0);
       acc_limit *= D2R;
 
-      vel_limit << 160, 160, 160, 160, 330, 330, 330;
+      vel_limit << 180, 180, 180, 180, 330, 330, 330;
       vel_limit *= D2R;
 
       RobotCommandBuilder command_builder;

@@ -525,16 +525,6 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
        "J5_Wrist_Pitch_R", "J6_Wrist_Yaw2_R", "J7_Shoulder_Pitch_L", "J8_Shoulder_Roll_L", "J9_Shoulder_Yaw_L",
        "J10_Elbow_L", "J11_Wrist_Yaw1_L", "J12_Wrist_Pitch_L", "J13_Wrist_Yaw2_L"});
   
-//   auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_pinch.urdf", "MA_Base"));
-//   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
-//       {"MA_Base", "MA_Link_J1R", "MA_Link_J2R", "MA_Link_J3R", "MA_Link_J4R", "MA_Link_J5R", "MA_Link_J6R", "MA_Link_J7R", "MA_Link_J1L", "MA_Link_J2L",
-//        "MA_Link_J3L", "MA_Link_J4L", "MA_Link_J5L", "MA_Link_J6L", "MA_Link_J7L"},
-//       {"J1_Shoulder_Pitch", "J2_Shoulder_Roll", "J3_Shoulder_Yaw", "J4_Elbow_Pitch", "J4_Wrist_Yaw1",
-//        "J5_Wrist_Pitch", "J6_Wrist_Yaw2", "J7_Shoulder_Pitch", "J8_Shoulder_Roll", "J9_Shoulder_Yaw",
-//        "J10_Elbow", "J11_Wrist_Yaw1", "J12_Wrist_Pitch", "J13_Wrist_Yaw2"});
-
-
-
   state->SetGravity({0, 0, 0, 0, 0, -9.81});
 
   Eigen::Matrix<double, 14, 1> q_joint, tau_joint;
@@ -1189,10 +1179,10 @@ int main(int argc, char** argv) {
       Eigen::Vector<double, 7> target_position_right = q_joint_ref.block(0, 0, 7, 1);
       Eigen::Vector<double, 7> acc_limit, vel_limit;
 
-      acc_limit.setConstant(1200.0);
+      acc_limit.setConstant(3600.0);
       acc_limit *= D2R;
 
-      vel_limit << 160, 160, 160, 160, 330, 330, 330;
+      vel_limit << 180, 180, 180, 180, 330, 330, 330;
       vel_limit *= D2R;
 
       RobotCommandBuilder command_builder;

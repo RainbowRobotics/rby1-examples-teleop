@@ -516,14 +516,6 @@ Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 1
 void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
                                  std::vector<int> activeIDs) {
 
-  // auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_basic.urdf", "Base"));
-  // auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
-  //     {"Base", "Link_0R", "Link_1R", "Link_2R", "Link_3R", "Link_4R", "Link_5R", "Link_6R", "Link_0L", "Link_1L",
-  //      "Link_2L", "Link_3L", "Link_4L", "Link_5L", "Link_6L"},
-  //     {"J0_Shoulder_Pitch_R", "J1_Shoulder_Roll_R", "J2_Shoulder_Yaw_R", "J3_Elbow_R", "J4_Wrist_Yaw1_R",
-  //      "J5_Wrist_Pitch_R", "J6_Wrist_Yaw2_R", "J7_Shoulder_Pitch_L", "J8_Shoulder_Roll_L", "J9_Shoulder_Yaw_L",
-  //      "J10_Elbow_L", "J11_Wrist_Yaw1_L", "J12_Wrist_Pitch_L", "J13_Wrist_Yaw2_L"});
-
   auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_pinch.urdf", "MA_Base"));
   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
       {"MA_Base", "MA_Link_J1R", "MA_Link_J2R", "MA_Link_J3R", "MA_Link_J4R", "MA_Link_J5R", "MA_Link_J6R", "MA_Link_J7R", "MA_Link_J1L", "MA_Link_J2L",
@@ -1242,10 +1234,10 @@ if (argc == 3) {
 
 
       
-      acc_limit.setConstant(1200.0);
+      acc_limit.setConstant(3600.0);
       acc_limit *= D2R;
 
-      vel_limit << 160, 160, 160, 160, 330, 330, 330;
+      vel_limit << 180, 180, 180, 180, 330, 330, 330;
       vel_limit *= D2R;
 
       RobotCommandBuilder command_builder;
