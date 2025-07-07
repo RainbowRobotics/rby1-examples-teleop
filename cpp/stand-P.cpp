@@ -451,32 +451,32 @@ Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 1
   if (q_joint(n_joint) > 90 * D2R) {
     torque_add(n_joint) += (90. * D2R - q_joint(n_joint)) * 1.;
   }
-  if (q_joint(n_joint) < 0. * D2R) {
-    torque_add(n_joint) += (0. * D2R - q_joint(n_joint)) * 1.;
+  if (q_joint(n_joint) < -45. * D2R) {
+    torque_add(n_joint) += (-45. * D2R - q_joint(n_joint)) * 1.;
   }
 
   n_joint = arm_dof + 5;
   if (q_joint(n_joint) > 90 * D2R) {
     torque_add(n_joint) += (90. * D2R - q_joint(n_joint)) * 1.;
   }
-  if (q_joint(n_joint) < 0. * D2R) {
-    torque_add(n_joint) += (0. * D2R - q_joint(n_joint)) * 1.;
+  if (q_joint(n_joint) < -45. * D2R) {
+    torque_add(n_joint) += (-45. * D2R - q_joint(n_joint)) * 1.;
   }
 
   n_joint = 4;
-  if (q_joint(n_joint) > 10 * D2R) {
-    torque_add(n_joint) += (10. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) > 20 * D2R) {
+    torque_add(n_joint) += (20. * D2R - q_joint(n_joint)) * 0.5;
   }
-  if (q_joint(n_joint) < -10 * D2R) {
-    torque_add(n_joint) += (-10. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) < -20 * D2R) {
+    torque_add(n_joint) += (-20. * D2R - q_joint(n_joint)) * 0.5;
   }
 
   n_joint = arm_dof + 4;
-  if (q_joint(n_joint) > 10 * D2R) {
-    torque_add(n_joint) += (10. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) > 20 * D2R) {
+    torque_add(n_joint) += (20. * D2R - q_joint(n_joint)) * 0.5;
   }
-  if (q_joint(n_joint) < -10 * D2R) {
-    torque_add(n_joint) += (-10. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) < -20 * D2R) {
+    torque_add(n_joint) += (-20. * D2R - q_joint(n_joint)) * 0.5;
   }
 
   n_joint = 3;
@@ -630,9 +630,7 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
 
     for (size_t i = 0; i < ids.size(); ++i) {
         if (auto val = ReadEncoder(portHandler, packetHandler, ids[i]); val.has_value()) {
-            double raw = normalize(val.value(), 2.4, 3.1);    // 닫았을 때 : 2.3(약 132°) , 열었을 때 : 3.2 (약 183°)
-            // raw = std::sqrt(raw);  // ← 필요 시 보정 함수 추가
-            // raw = std::asin(raw) * (2.0 / M_PI);   // ← 필요 시 보정 함수 추가
+            double raw = normalize(val.value(), 2.4, 3.3);    // 닫았을 때 : 2.4(약 130°) , 열었을 때 : 3.2 (약 190°)
             normalized_triggers[i] = raw;
         }
     }
@@ -664,28 +662,6 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
                 id_and_mode_vector.push_back(std::make_pair(id, CURRENT_BASED_POSITION_CONTROL_MODE));
                 id_torque_onoff_vector.push_back(id);
               }
-              //  else {
-              //   id_send_position_vector.push_back(std::make_pair(id, q_joint_ma(id)));
-              //   GroupSyncWriteSendPosition(id_send_position_vector);
-              //    for (const auto& pair : id_send_position_vector) {
-              //         std::cout << "ID: " << pair.first << ", Position: " << pair.second << std::endl;
-              //     }
-              // }
-
-  //               if (!id_pos_init_flag[id]) {
-  //   if (operation_mode(id) != CURRENT_BASED_POSITION_CONTROL_MODE) {
-  //     id_and_mode_vector.push_back(std::make_pair(id, CURRENT_BASED_POSITION_CONTROL_MODE));
-  //     id_torque_onoff_vector.push_back(id);
-  //   }
-  //   id_pos_init_flag[id] = true;  // 한 번만 설정
-  // } else {
-  //   id_send_position_vector.push_back(std::make_pair(id, q_joint_ma(id)));
-  //   GroupSyncWriteSendPosition(id_send_position_vector);
-  //   for (const auto& pair : id_send_position_vector) {
-  //     std::cout << "ID: " << pair.first << ", Position: " << pair.second << std::endl;
-  //   }
-  // }
-
             } 
             else if (button == 1) {
               // current control
@@ -1055,7 +1031,7 @@ if (argc == 3) {
     }
   }
 
-  if (activeIDs.size() != 16) {
+  if (activeIDs.size() != 18) {
     std::cerr << "Unable to ping all devices for master arm" << std::endl;
     Eigen::Map<Eigen::VectorXi> ids(activeIDs.data(), activeIDs.size());
     std::cerr << "active ids: " << ids.transpose() << std::endl;
@@ -1220,14 +1196,14 @@ if (argc == 3) {
 
       
       //=============Off set [Wrist Yaw]]===================//
-      const double offset_rad = 1.57079632679;
+      // const double offset_rad = 1.57079632679;
           
-      target_position_left(6)  -= offset_rad;
-      target_position_right(6) += offset_rad;
+      // target_position_left(6)  -= offset_rad;
+      // target_position_right(6) += offset_rad;
 
-      double joint_limit_rad = 130.0 * M_PI / 180.0;
-      target_position_left(6)  = std::clamp(target_position_left(6),  -joint_limit_rad, 0.0);
-      target_position_right(6) = std::clamp(target_position_right(6), 0.0, joint_limit_rad);
+      // double joint_limit_rad = 130.0 * M_PI / 180.0;
+      // target_position_left(6)  = std::clamp(target_position_left(6),  -joint_limit_rad, 0.0);
+      // target_position_right(6) = std::clamp(target_position_right(6), 0.0, joint_limit_rad);
       
       //=============Off set [Wrist Yaw]]===================//
       
