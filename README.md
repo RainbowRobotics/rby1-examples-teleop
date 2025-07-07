@@ -65,20 +65,16 @@ cmake --build .
 ## Variable Descriptions
 
 ```c++
-double m_sf = 0.4;
-    # Gravity compensation scale factor
-    # 1.0 = 100% compensation
-    # 0.4 = 40% compensation (default)
+m_sf = 0.4;
+    # Gravity compensation scale factor (1.0 = 100%, 0.4 = 40% default)
 
 calc_torque_for_limit_avoid();
     # Applies torque to keep joints within the defined range
     # Automatically adds torque if joint exceeds its range
 
-acc_limit();
-    # Joint acceleration limit (deg/s²)
-    # Default: 3600 for all joints
+acc_limit;
+    # Set joint acceleration limit (deg/s²), default = 3600
 
-vel_limit();
-    # Joint velocity limit per joint (deg/s)
-    # Default: [180, 180, 180, 180, 330, 330, 330]
+vel_limit;
+    # Set joint velocity limit (deg/s), default = [180, 180, 180, 180, 330, 330, 330]
 ```
