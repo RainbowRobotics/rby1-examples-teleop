@@ -4,7 +4,6 @@
   <link name="world"/>
 
   <!-- Link Base -->
-
   <link name="MA_Base">
     <inertial>
       <mass value="0.66142136"/>
@@ -26,9 +25,9 @@
   <!-- Links_R -->
   <link name="MA_Link_J1R">
     <inertial>
-      <mass value="0.23605493"/>
-      <origin rpy="0 0 0" xyz="-0.00001991 0.01073585 0.01076106"/>
-      <inertia ixx="0.00012008" ixy="-0.00000130" ixz="0.00000047" iyy="0.00011013" iyz="0.00000389" izz="0.00009188"/>
+      <mass value="0.22285683"/>
+      <origin rpy="0 0 0" xyz="0.00048276 0.00994955 0.01143937"/>
+      <inertia ixx="0.00010926" ixy="0.00000074" ixz="-0.00000050" iyy="0.00010180" iyz="0.00000089" izz="0.00008352"/>
     </inertial>
 
     <visual>
@@ -44,9 +43,9 @@
 
     <link name="MA_Link_J2R">
     <inertial>
-      <mass value="0.25778160"/>
-      <origin rpy="0 0 0" xyz="0.01309355 -0.00006725 -0.06431642"/>
-      <inertia ixx="0.00015925" ixy="-0.00000023" ixz="0.00003240" iyy="0.00021601" iyz="0.00000118" izz="0.00012721"/>
+      <mass value="0.24640382"/>
+      <origin rpy="0 0 0" xyz="0.01296806 -0.00003277 -0.06516183"/>
+      <inertia ixx="0.00013620" ixy="-0.00000010" ixz="0.00002637" iyy="0.00018743" iyz="0.00000055" izz="0.00011718"/>
     </inertial>
 
     <visual>
@@ -62,9 +61,9 @@
 
     <link name="MA_Link_J3R">
     <inertial>
-      <mass value="0.22100820"/>
-      <origin rpy="0 0 0" xyz="0.00674624 0.00016256 -0.16285715"/>
-      <inertia ixx="0.00033024" ixy="-0.00000031" ixz="0.00007099" iyy="0.00037963" iyz="0.00000124" izz="0.00009326"/>
+      <mass value="0.21684531"/>
+      <origin rpy="0 0 0" xyz="0.00870034 0.00016568 -0.18768815"/>
+      <inertia ixx="0.00051472" ixy="-0.00000024" ixz="0.00008542" iyy="0.00054840" iyz="0.00000157" izz="0.00007709"/>
     </inertial>
 
     <visual>
@@ -80,9 +79,9 @@
 
     <link name="MA_Link_J4R">
     <inertial>
-      <mass value="0.16661372"/>
-      <origin rpy="0 0 0" xyz="-0.02113496 -0.00005349 -0.04166261"/>
-      <inertia ixx="0.00006868" ixy="-0.00000015" ixz="-0.00000275" iyy="0.00007370" iyz="0.00000003" izz="0.00006647"/>
+      <mass value="0.15321181"/>
+      <origin rpy="0 0 0" xyz="-0.02116670 -0.00005817 -0.04223570"/>
+      <inertia ixx="0.00005793" ixy="-0.00000015" ixz="-0.00000104" iyy="0.00006184" iyz="0.00000004" izz="0.00005738"/>
     </inertial>
 
     <visual>
@@ -98,9 +97,9 @@
 
     <link name="MA_Link_J5R">
     <inertial>
-      <mass value="0.22488687"/>
-      <origin rpy="0 0 0" xyz="0.00316462 0.00015984 0.03638073"/>
-      <inertia ixx="0.00040375" ixy="-0.00000049" ixz="-0.00004970" iyy="0.00043616" iyz="0.00000136" izz="0.00007691"/>
+      <mass value="0.26207359"/>
+      <origin rpy="0 0 0" xyz="0.00557790 0.00467349 0.08575803"/>
+      <inertia ixx="0.00058849" ixy="0.00000738" ixz="0.00004243" iyy="0.00060743" iyz="0.00005519" izz="0.00011298"/>
     </inertial>
 
     <visual>
@@ -116,9 +115,9 @@
 
     <link name="MA_Link_J6R">
     <inertial>
-      <mass value="0.16285880"/>
-      <origin rpy="0 0 0" xyz="0.00841219 0.00000000 -0.05539566"/>
-      <inertia ixx="0.00007773" ixy="-0.00000000" ixz="0.00000622" iyy="0.00008163" iyz="0.00000000" izz="0.00006271"/>
+      <mass value="0.12931104"/>
+      <origin rpy="0 0 0" xyz="0.08132607 0.08060599 -0.05823234"/>
+      <inertia ixx="0.00057977" ixy="-0.00012522" ixz="0.00006868" iyy="0.00071017" iyz="0.00023495" izz="0.00058411"/>
     </inertial>
 
     <visual>
@@ -134,9 +133,9 @@
 
     <link name="MA_Link_J7R">
     <inertial>
-      <mass value="0.19"/>
-      <origin rpy="0 0 0" xyz="-0.01808597 0.00684039 -0.10439675"/>
-      <inertia ixx="0.00060848" ixy="0.00002390" ixz="0.00021011" iyy="0.00077882" iyz="-0.00003139" izz="0.00026207"/>
+      <mass value="0.30239425"/>
+      <origin rpy="0 0 0" xyz="0.02315134 0.00001279 -0.08248957"/>
+      <inertia ixx="0.00022759" ixy="0.00000089" ixz="0.00003619" iyy="0.00064028" iyz="0.00000001" izz="0.00063638"/>
     </inertial>
 
     <visual>
@@ -152,13 +151,13 @@
 
 
 
-  
+ 
   <!-- Links_L -->
       <link name="MA_Link_J1L">
     <inertial>
-      <mass value="0.23605493"/>
-      <origin rpy="0 0 0" xyz="-0.00001991 -0.01073585 0.01076106"/>
-      <inertia ixx="0.00012008" ixy="0.00000130" ixz="0.00000047" iyy="0.00011013" iyz="-0.00000389" izz="0.00009188"/>
+      <mass value="0.22285683"/>
+      <origin rpy="0 0 0" xyz="0.00048276 -0.00994955 0.01143937"/>
+      <inertia ixx="0.00010926" ixy="-0.00000074" ixz="-0.00000050" iyy="0.00010180" iyz="-0.00000089" izz="0.00008352"/>
     </inertial>
 
     <visual>
@@ -174,9 +173,9 @@
 
     <link name="MA_Link_J2L">
     <inertial>
-      <mass value="0.25778160"/>
-      <origin rpy="0 0 0" xyz="0.01309355 0.00006725 -0.06431642"/>
-      <inertia ixx="0.00015925" ixy="0.00000023" ixz="0.00003240" iyy="0.00021601" iyz="-0.00000118" izz="0.00012721"/>
+      <mass value="0.24640382"/>
+      <origin rpy="0 0 0" xyz="0.01296806 0.00003277 -0.06516183"/>
+      <inertia ixx="0.00013620" ixy="0.00000010" ixz="0.00002637" iyy="0.00018743" iyz="-0.00000055" izz="0.00011718"/>
     </inertial>
 
     <visual>
@@ -192,9 +191,9 @@
 
       <link name="MA_Link_J3L">
     <inertial>
-      <mass value="0.22100820"/>
-      <origin rpy="0 0 0" xyz="0.00674624 -0.00016256 -0.16285715"/>
-      <inertia ixx="0.00033024" ixy="0.00000031" ixz="0.00007099" iyy="0.00037963" iyz="-0.00000124" izz="0.00009326"/>
+      <mass value="0.21684595"/>
+      <origin rpy="0 0 0" xyz="0.00870155 -0.00016568 -0.18770935"/>
+      <inertia ixx="0.00051437" ixy="0.00000023" ixz="0.00008538" iyy="0.00054804" iyz="-0.00000156" izz="0.00007709"/>
     </inertial>
 
     <visual>
@@ -210,9 +209,9 @@
 
       <link name="MA_Link_J4L">
     <inertial>
-      <mass value="0.16661372"/>
-      <origin rpy="0 0 0" xyz="-0.02113496 0.00005349 -0.04166261"/>
-      <inertia ixx="0.00006868" ixy="0.00000015" ixz="-0.00000275" iyy="0.00007370" iyz="-0.00000003" izz="0.00006647"/>
+      <mass value="0.15321181"/>
+      <origin rpy="0 0 0" xyz="-0.02150470 0.00006753 -0.04223570"/>
+      <inertia ixx="0.00005787" ixy="0.00000016" ixz="-0.00000159" iyy="0.00006286" iyz="-0.00000006" izz="0.00005833"/>
     </inertial>
 
     <visual>
@@ -228,9 +227,9 @@
 
       <link name="MA_Link_J5L">
     <inertial>
-      <mass value="0.22488687"/>
-      <origin rpy="0 0 0" xyz="0.00316462 -0.00015984 0.03638073"/>
-      <inertia ixx="0.00040375" ixy="0.00000049" ixz="0.00004970" iyy="0.00043616" iyz="-0.00000136" izz="0.00007691"/>
+      <mass value="0.26207359"/>
+      <origin rpy="0 0 0" xyz="0.00441616 0.00530597 -0.09039280"/>
+      <inertia ixx="0.00055030" ixy="0.00000602" ixz="-0.00003459" iyy="0.00056436" iyz="-0.00005946" izz="0.00009950"/>
     </inertial>
 
     <visual>
@@ -246,9 +245,9 @@
 
       <link name="MA_Link_J6L">
     <inertial>
-      <mass value="0.16285880"/>
-      <origin rpy="0 0 0" xyz="0.00841219 -0.00000000 -0.05539566"/>
-      <inertia ixx="0.00007773" ixy="0.00000000" ixz="0.00000622" iyy="0.00008163" iyz="-0.00000000" izz="0.00006271"/>
+      <mass value="0.12931104"/>
+      <origin rpy="0 0 0" xyz="0.08132607 -0.08060599 -0.05823234"/>
+      <inertia ixx="0.00057977" ixy="0.00012522" ixz="0.00006868" iyy="0.00071017" iyz="-0.00023495" izz="0.00058411"/>
     </inertial>
 
     <visual>
@@ -264,9 +263,9 @@
 
     <link name="MA_Link_J7L">
     <inertial>
-      <mass value="0.19"/>
-      <origin rpy="0 0 0" xyz="-0.01808597 0.00684039 -0.10439675"/>
-      <inertia ixx="0.00060848" ixy="0.00002390" ixz="0.00021011" iyy="0.00077882" iyz="-0.00003139" izz="0.00026207"/>
+      <mass value="0.30239425"/>
+      <origin rpy="0 0 0" xyz="0.02315134 0.00001279 -0.08248957"/>
+      <inertia ixx="0.00022759" ixy="0.00000089" ixz="0.00003619" iyy="0.00064028" iyz="0.00000001" izz="0.00063638"/>
     </inertial>
 
     <visual>
@@ -295,7 +294,7 @@
   <joint name="J1_Shoulder_Pitch" type="revolute">
     <parent link="MA_Base"/>
     <child link="MA_Link_J1R"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.450 0.01"/>
+    <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.300 0.0"/>
     <axis xyz="0.0 0.93969262 -0.34202014"/>
     <limit effort="1000.0" lower="-3.14159265" upper="3.14159265" velocity="3.14159265"/>
   </joint>
@@ -319,7 +318,7 @@
     <joint name="J4_Elbow_Pitch" type="revolute">
     <parent link="MA_Link_J3R"/>
     <child link="MA_Link_J4R"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.032 0.0 -0.350"/>
+    <origin rpy="0.0 0.0 0.0" xyz="0.032 0.0 -0.230"/>
     <axis xyz="0 1 0"/>
     <limit effort="1000.0" lower="-3.054326190" upper="0.087266463" velocity="3.14159265"/>
   </joint>
@@ -327,7 +326,7 @@
     <joint name="J4_Wrist_Yaw1" type="revolute">
     <parent link="MA_Link_J4R"/>
     <child link="MA_Link_J5R"/>
-    <origin rpy="0.0 0.0 0.0" xyz="-0.032 0.0 -0.250"/>
+    <origin rpy="0.0 0.0 0.0" xyz="-0.032 0.0 -0.245"/>
     <axis xyz="0 0 1"/>
     <limit effort="1000.0" lower="-2.705260338" upper="2.705260338" velocity="3.14159265"/>
   </joint>
@@ -343,7 +342,7 @@
     <joint name="J6_Wrist_Yaw2" type="revolute">
     <parent link="MA_Link_J6R"/>
     <child link="MA_Link_J7R"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+    <origin rpy="0.0 0.0 0.0" xyz="0.040 0.120 0.0"/>
     <axis xyz="0 0 1"/>
     <limit effort="1000.0" lower="-3.14159265" upper="3.14159265" velocity="3.14159265"/>
   </joint>
@@ -353,7 +352,7 @@
   <joint name="J7_Shoulder_Pitch" type="revolute">
     <parent link="MA_Base"/>
     <child link="MA_Link_J1L"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.0 0.450 0.01"/>
+    <origin rpy="3.14159265 0.0 0.0" xyz="0.0 0.300 0.0"/>
     <axis xyz="0.0 0.93969262 0.34202014"/>
     <limit effort="1000.0" lower="-3.14159265" upper="3.14159265" velocity="3.14159265"/>
   </joint>
@@ -377,15 +376,15 @@
     <joint name="J10_Elbow" type="revolute">
     <parent link="MA_Link_J3L"/>
     <child link="MA_Link_J4L"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.032 0.0 -0.350"/>
+    <origin rpy="0.0 0.0 0.0" xyz="0.032 0.0 0.230"/>
     <axis xyz="0 1 0"/>
-    <limit effort="1000.0" lower="-3.054326190" upper="0.087266463" velocity="3.14159265"/>
+    <limit effort="1000.0" lower="-0.087266463" upper="3.054326190" velocity="3.14159265"/>
   </joint>
 
     <joint name="J11_Wrist_Yaw1" type="revolute">
     <parent link="MA_Link_J4L"/>
     <child link="MA_Link_J5L"/>
-    <origin rpy="0.0 0.0 0.0" xyz="-0.032 0.0 -0.250"/>
+    <origin rpy="0.0 0.0 0.0" xyz="-0.032 0.0 0.245"/>
     <axis xyz="0 0 1"/>
     <limit effort="1000.0" lower="-2.705260338" upper="2.705260338" velocity="3.14159265"/>
   </joint>
@@ -401,7 +400,7 @@
     <joint name="J13_Wrist_Yaw2" type="revolute">
     <parent link="MA_Link_J6L"/>
     <child link="MA_Link_J7L"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+    <origin rpy="3.14159265 0.0 0.0" xyz="0.040 0.120 0.0"/>
     <axis xyz="0 0 1"/>
     <limit effort="1000.0" lower="-3.14159265" upper="3.14159265" velocity="3.14159265"/>
   </joint>
