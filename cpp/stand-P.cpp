@@ -4,24 +4,26 @@
 #endif
 
 #include <Eigen/Core>
-#include <algorithm>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <thread>
-#include "dynamixel_sdk.h"
-
-#include "rby1-sdk/base/dynamixel_bus.h"
+#include "dynamixel_sdk.h"  // Uses Dynamixel SDK library
 #include "rby1-sdk/dynamics/robot.h"
 #include "rby1-sdk/dynamics/state.h"
+
 #include "rby1-sdk/model.h"
 #include "rby1-sdk/robot.h"
 #include "rby1-sdk/robot_command_builder.h"
+
 #include "rby1-sdk/upc/device.h"
+
+#include <unistd.h>
+#include <algorithm>
+#include <cstring>
 
 using namespace rb;
 using namespace std::chrono_literals;
@@ -32,7 +34,8 @@ const std::string kAll = ".*";
 #define PROTOCOL_VERSION 2.0  // See which protocol version is used in the Dynamixel
 
 // Default setting
-#define BAUDRATE 2000000
+#define BAUDRATE_GRIPPER 2000000
+#define BAUDRATE_MASTER_ARM 2000000
 
 #define ADDR_TORQUE_ENABLE 64
 #define ADDR_PRESENT_POSITION 132
@@ -78,247 +81,27 @@ Eigen::Matrix<double, 2, 1> hand_controller_button = Eigen::Matrix<double, 2, 1>
 //XXX: CAUTION CHECK YOUR TRIGGER FIRMWARE
 std::vector<Eigen::Matrix<double, 2, 1>> hand_controller_trigger_min_max = {Eigen::Matrix<double, 2, 1>({0, 1000}),
                                                                             Eigen::Matrix<double, 2, 1>({0, 1000})};
-int gripper_direction = 0; 
+int gripper_direction = 0;
 bool ma_info_verbose = false;
 
 std::vector<double> torque_constant = {1.6591, 1.6591, 1.6591, 1.3043, 1.3043, 1.3043, 0.95,
                                        1.6591, 1.6591, 1.6591, 1.3043, 1.3043, 1.3043, 0.95};
 
 void signalHandler(int signum) {
-    std::cout << "\nCtrl-C detected! Stopping..." << std::endl;
-    running = false;
-}      
+  std::cout << "\nCtrl-C detected! Stopping..." << std::endl;
+  running = false;
+}
 
-dynamixel::PortHandler* g_port_handler = nullptr;
-dynamixel::PacketHandler* g_packet_handler = nullptr;
+void SendVibration(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler, int id, int level) {
 
-std::unordered_map<int, int> operating_modes_;
-
-std::optional<std::vector<std::pair<int, int>>> GroupFastSyncRead(const std::vector<int>& ids, int addr, int len) {
-    std::vector<std::pair<int, int>> rv;
-    dynamixel::GroupFastSyncRead group_fast_sync_read(g_port_handler, g_packet_handler, addr, len);
-
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        group_fast_sync_read.addParam(id);
-      }
-    }
-
-    group_fast_sync_read.txRxPacket();
-
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        if (group_fast_sync_read.isAvailable(id, addr, len)) {
-          auto data = (int)group_fast_sync_read.getData(id, addr, len);
-          rv.emplace_back(id, data);
-        }
-      }
-    }
-
-    std::this_thread::sleep_for(100us);
-
-    if (rv.empty()) {
-      return {};
-    } else {
-      return rv;
-    }
+  if (id > 0x80) {
+    packetHandler->write2ByteTxOnly(portHandler, id, ADDR_GOAL_VIBRATION_LEVEL, level);
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
   }
-
-  std::optional<std::vector<std::pair<int /* id */, double /* enc (rad) */>>> GroupFastSyncReadEncoder(
-      const std::vector<int>& ids) {
-    std::vector<std::pair<int, double>> v;
-
-    const auto& rv = GroupFastSyncRead(ids, ADDR_PRESENT_POSITION, 4);
-    std::this_thread::sleep_for(100us);
-    if (rv.has_value()) {
-      for (const auto& r : rv.value()) {
-        v.emplace_back(r.first, (double)r.second / 4096. * 2. * 3.141592);
-      }
-      return v;
-    } else {
-      return {};
-    }
-  }
-
-  std::optional<std::vector<std::pair<int, int>>> GroupFastSyncReadOperatingMode(const std::vector<int>& ids,
-                                                                                 bool use_cache) {
-    std::vector<std::pair<int, int>> operating_mode_vector;
-  dynamixel::GroupFastSyncRead group_fast_sync_read(g_port_handler, g_packet_handler, ADDR_OPERATING_MODE, 1);
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        if (use_cache && operating_modes_.find(id) != operating_modes_.end()) {
-          operating_mode_vector.emplace_back(id, operating_modes_[id]);
-          continue;
-        }
-        group_fast_sync_read.addParam(id);
-      }
-    }
-
-    group_fast_sync_read.txRxPacket();
-
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        if (group_fast_sync_read.isAvailable(id, ADDR_OPERATING_MODE, 1)) {
-          auto mode = (int)group_fast_sync_read.getData(id, ADDR_OPERATING_MODE, 1);
-          operating_modes_[id] = mode;
-          operating_mode_vector.emplace_back(id, mode);
-        }
-      }
-    }
-
-    std::this_thread::sleep_for(100us);
-
-    if (operating_mode_vector.empty()) {
-      return {};
-    } else {
-      return operating_mode_vector;
-    }
-  }
-
-  std::optional<std::vector<std::pair<int, int>>> GroupFastSyncReadTorqueEnable(const std::vector<int>& ids) {
-    std::vector<std::pair<int, int>> torque_enable_vector;
-  dynamixel::GroupFastSyncRead group_fast_sync_read(g_port_handler, g_packet_handler, ADDR_TORQUE_ENABLE, 1);
-
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        group_fast_sync_read.addParam(id);
-      }
-    }
-
-    group_fast_sync_read.txRxPacket();
-
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        if (group_fast_sync_read.isAvailable(id, ADDR_TORQUE_ENABLE, 1)) {
-          auto operation_mode = (int)group_fast_sync_read.getData(id, ADDR_TORQUE_ENABLE, 1);
-          torque_enable_vector.emplace_back(id, operation_mode);
-        }
-      }
-    }
-
-    std::this_thread::sleep_for(100us);
-
-    if (torque_enable_vector.empty()) {
-      return {};
-    } else {
-      return torque_enable_vector;
-    }
-  }
-
-  void GroupSyncWriteTorqueEnable(const std::vector<std::pair<int, int>>& id_and_enable_vector) {
-    if (id_and_enable_vector.empty())
-      return;
-
-    dynamixel::GroupSyncWrite group_sync_write(g_port_handler, g_packet_handler, ADDR_TORQUE_ENABLE, 1);
-
-    uint8_t param[1];
-
-    for (auto const& id_and_enable : id_and_enable_vector) {
-      if (id_and_enable.first < 0x80) {
-        param[0] = id_and_enable.second;
-        group_sync_write.addParam(id_and_enable.first, param);
-      }
-    }
-
-    group_sync_write.txPacket();
-
-    std::this_thread::sleep_for(100us);
-  }
-
-  void GroupSyncWriteTorqueEnable(const std::vector<int>& ids, int enable) {
-    if (ids.empty())
-      return;
-
-    dynamixel::GroupSyncWrite group_sync_write(g_port_handler, g_packet_handler, ADDR_TORQUE_ENABLE, 1);
-
-    uint8_t param[1];
-
-    for (auto const& id : ids) {
-      if (id < 0x80) {
-        param[0] = enable;
-        group_sync_write.addParam(id, param);
-      }
-    }
-
-    group_sync_write.txPacket();
-
-    std::this_thread::sleep_for(100us);
-  }
-
-  void GroupSyncWriteOperatingMode(const std::vector<std::pair<int, int>>& id_and_mode_vector) {
-    if (id_and_mode_vector.empty()) {
-      return;
-    }
-
-    dynamixel::GroupSyncWrite group_sync_write(g_port_handler, g_packet_handler, ADDR_OPERATING_MODE, 1);
-
-    uint8_t param[1];
-
-    for (auto const& id_and_mode : id_and_mode_vector) {
-      if (id_and_mode.first < 0x80) {
-        param[0] = id_and_mode.second;
-        group_sync_write.addParam(id_and_mode.first, param);
-      }
-    }
-
-    int result = group_sync_write.txPacket();
-
-    std::this_thread::sleep_for(100us);
-
-    if (result == COMM_SUCCESS) {
-      for (auto const& id_and_mode : id_and_mode_vector) {
-        if (id_and_mode.first < 0x80) {
-          operating_modes_[id_and_mode.first] = id_and_mode.second;
-        }
-      }
-    }
-  }
-
-  void GroupSyncWriteSendPosition(const std::vector<std::pair<int, double>>& id_and_position_vector) {
-    if (id_and_position_vector.empty())
-      return;
-
-    dynamixel::GroupSyncWrite group_sync_write(g_port_handler, g_packet_handler, ADDR_GOAL_POSITION, 4);
-
-    for (auto const& id_and_position : id_and_position_vector) {
-      if (id_and_position.first < 0x80) {
-        int goal_position = (int)(id_and_position.second * 4096. / 2. / 3.141592);
-        uint8_t param[4];
-        param[0] = DXL_LOBYTE(DXL_LOWORD(goal_position));
-        param[1] = DXL_HIBYTE(DXL_LOWORD(goal_position));
-        param[2] = DXL_LOBYTE(DXL_HIWORD(goal_position));
-        param[3] = DXL_HIBYTE(DXL_HIWORD(goal_position));
-        group_sync_write.addParam(id_and_position.first, param);
-      }
-    }
-
-    group_sync_write.txPacket();
-
-    std::this_thread::sleep_for(100us);
-  }
-
-  void GroupSyncWriteSendTorque(const std::vector<std::pair<int, double>>& id_and_torque_vector) {
-    if (id_and_torque_vector.empty())
-      return;
-
-    dynamixel::GroupSyncWrite group_sync_write(g_port_handler, g_packet_handler, ADDR_GOAL_CURRENT, 2);
-
-    int16_t param[1];
-
-    for (auto const& id_and_torque : id_and_torque_vector) {
-      if (id_and_torque.first < 0x80) {
-        param[0] = (int16_t)(id_and_torque.second / torque_constant[id_and_torque.first] * 1000. / 2.69);
-        group_sync_write.addParam(id_and_torque.first, reinterpret_cast<uint8_t*>(&param));
-      }
-    }
-
-    group_sync_write.txPacket();
-
-    std::this_thread::sleep_for(100us);
-  }
+}
 
 std::optional<std::pair<int, int>> ReadButtonStatus(dynamixel::PortHandler* portHandler,
-                                                                    dynamixel::PacketHandler* packetHandler, int id) {
+                                                    dynamixel::PacketHandler* packetHandler, int id) {
 
   int32_t position = 0;
   uint8_t dxl_error = 0;
@@ -364,6 +147,37 @@ std::optional<double> ReadEncoder(dynamixel::PortHandler* portHandler, dynamixel
   }
 }
 
+std::optional<std::vector<std::pair<int, double>>> BulkReadEncoder(dynamixel::PortHandler* portHandler,
+                                                                   dynamixel::PacketHandler* packetHandler,
+                                                                   std::vector<int> ids) {
+
+  std::vector<std::pair<int, double>> position_vector;
+  dynamixel::GroupBulkRead groupBulkRead(portHandler, packetHandler);
+
+  for (auto const& id : ids) {
+    if (id < 0x80 || id >= 0x80 + 2) {
+      groupBulkRead.addParam(id, ADDR_PRESENT_POSITION, 4);
+    }
+  }
+
+  groupBulkRead.txRxPacket();
+
+  for (auto const& id : ids) {
+    if (id < 0x80 || id >= 0x80 + 2) {
+      if (groupBulkRead.isAvailable(id, ADDR_PRESENT_POSITION, 4)) {
+        int position = groupBulkRead.getData(id, ADDR_PRESENT_POSITION, 4);
+        position_vector.push_back(std::make_pair(id, (double)position / 4096. * 2. * 3.141592));
+      }
+    }
+  }
+
+  if (position_vector.size() == 0) {
+    return {};
+  } else {
+    return position_vector;
+  }
+}
+
 void SendGoalPosition(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler, int id,
                       int goal_position) {
   packetHandler->write4ByteTxOnly(portHandler, id, ADDR_GOAL_POSITION, goal_position);
@@ -382,6 +196,140 @@ std::optional<int> ReadOperationMode(dynamixel::PortHandler* portHandler, dynami
   } else {
     return {};
   }
+}
+
+std::optional<std::vector<std::pair<int, int>>> BulkReadOperationMode(dynamixel::PortHandler* portHandler,
+                                                                      dynamixel::PacketHandler* packetHandler,
+                                                                      std::vector<int> ids) {
+
+  std::vector<std::pair<int, int>> operation_mode_vector;
+  dynamixel::GroupBulkRead groupBulkRead(portHandler, packetHandler);
+
+  for (auto const& id : ids) {
+    if (id < 0x80) {
+      groupBulkRead.addParam(id, ADDR_OPERATING_MODE, 1);
+    }
+  }
+
+  groupBulkRead.txRxPacket();
+
+  for (auto const& id : ids) {
+    if (id < 0x80) {
+      if (groupBulkRead.isAvailable(id, ADDR_OPERATING_MODE, 1)) {
+        int operation_mode = groupBulkRead.getData(id, ADDR_OPERATING_MODE, 1);
+        operation_mode_vector.push_back(std::make_pair(id, operation_mode));
+      }
+    }
+  }
+
+  if (operation_mode_vector.size() == 0) {
+    return {};
+  } else {
+    return operation_mode_vector;
+  }
+}
+
+std::optional<std::vector<std::pair<int, int>>> BulkReadTorqueEnable(dynamixel::PortHandler* portHandler,
+                                                                     dynamixel::PacketHandler* packetHandler,
+                                                                     std::vector<int> ids) {
+
+  std::vector<std::pair<int, int>> torque_enable_vector;
+  dynamixel::GroupBulkRead groupBulkRead(portHandler, packetHandler);
+
+  for (auto const& id : ids) {
+    if (id < 0x80) {
+      groupBulkRead.addParam(id, ADDR_TORQUE_ENABLE, 1);
+    }
+  }
+
+  groupBulkRead.txRxPacket();
+
+  for (auto const& id : ids) {
+    if (id < 0x80) {
+      if (groupBulkRead.isAvailable(id, ADDR_TORQUE_ENABLE, 1)) {
+        int operation_mode = groupBulkRead.getData(id, ADDR_TORQUE_ENABLE, 1);
+        torque_enable_vector.push_back(std::make_pair(id, operation_mode));
+      }
+    }
+  }
+
+  if (torque_enable_vector.size() == 0) {
+    return {};
+  } else {
+    return torque_enable_vector;
+  }
+}
+
+void BulkWriteTorqueEnable(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
+                           std::vector<std::pair<int, int>> id_and_enable_vector) {
+
+  dynamixel::GroupBulkWrite groupBulkWrite(portHandler, packetHandler);
+
+  uint8_t param[1];
+
+  for (auto const& id_and_enable : id_and_enable_vector) {
+    if (id_and_enable.first < 0x80) {
+      param[0] = id_and_enable.second;
+      groupBulkWrite.addParam(id_and_enable.first, ADDR_TORQUE_ENABLE, 1, param);
+    }
+  }
+
+  groupBulkWrite.txPacket();
+  std::this_thread::sleep_for(std::chrono::microseconds(500));
+}
+
+void BulkWriteTorqueEnable(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
+                           std::vector<int> ids, int enable) {
+
+  dynamixel::GroupBulkWrite groupBulkWrite(portHandler, packetHandler);
+
+  uint8_t param[1];
+
+  for (auto const& id : ids) {
+    if (id < 0x80) {
+      param[0] = enable;
+      groupBulkWrite.addParam(id, ADDR_TORQUE_ENABLE, 1, param);
+    }
+  }
+
+  groupBulkWrite.txPacket();
+  std::this_thread::sleep_for(std::chrono::microseconds(500));
+}
+
+void BulkWriteOperationMode(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
+                            std::vector<std::pair<int, int>> id_and_mode_vector) {
+
+  dynamixel::GroupBulkWrite groupBulkWrite(portHandler, packetHandler);
+
+  uint8_t param[1];
+
+  for (auto const& id_and_mode : id_and_mode_vector) {
+    if (id_and_mode.first < 0x80) {
+      param[0] = id_and_mode.second;
+      groupBulkWrite.addParam(id_and_mode.first, ADDR_OPERATING_MODE, 1, param);
+    }
+  }
+
+  groupBulkWrite.txPacket();
+  std::this_thread::sleep_for(std::chrono::microseconds(500));
+}
+
+void BulkWriteSendTorque(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
+                         std::vector<std::pair<int, double>> id_and_torque_vector) {
+
+  dynamixel::GroupBulkWrite groupBulkWrite(portHandler, packetHandler);
+
+  uint16_t param[1];
+
+  for (auto const& id_and_mode : id_and_torque_vector) {
+    if (id_and_mode.first < 0x80) {
+      param[0] = (int16_t)(id_and_mode.second / torque_constant[id_and_mode.first] * 1000. / 2.69);
+      groupBulkWrite.addParam(id_and_mode.first, ADDR_GOAL_CURRENT, 2, reinterpret_cast<uint8_t*>(&param));
+    }
+  }
+
+  groupBulkWrite.txPacket();
+  std::this_thread::sleep_for(std::chrono::microseconds(500));
 }
 
 void SendOperationMode(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler, int id,
@@ -432,10 +380,10 @@ Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 1
   }
 
   n_joint = 2;
-  if (q_joint(n_joint) > 90 * D2R) {
+  if (q_joint(n_joint) > 90. * D2R) {
     torque_add(n_joint) += (90. * D2R - q_joint(n_joint)) * 0.5;
   }
-  if (q_joint(n_joint) < 0) {
+  if (q_joint(n_joint) < 0.) {
     torque_add(n_joint) += (0. - q_joint(n_joint)) * 0.5;
   }
 
@@ -464,19 +412,19 @@ Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 1
   }
 
   n_joint = 4;
-  if (q_joint(n_joint) > 20 * D2R) {
-    torque_add(n_joint) += (20. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) > 30 * D2R) {
+    torque_add(n_joint) += (30. * D2R - q_joint(n_joint)) * 0.5;
   }
-  if (q_joint(n_joint) < -20 * D2R) {
-    torque_add(n_joint) += (-20. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) < -10 * D2R) {
+    torque_add(n_joint) += (-10. * D2R - q_joint(n_joint)) * 0.5;
   }
 
   n_joint = arm_dof + 4;
-  if (q_joint(n_joint) > 20 * D2R) {
-    torque_add(n_joint) += (20. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) > 10 * D2R) {
+    torque_add(n_joint) += (10. * D2R - q_joint(n_joint)) * 0.5;
   }
-  if (q_joint(n_joint) < -20 * D2R) {
-    torque_add(n_joint) += (-20. * D2R - q_joint(n_joint)) * 0.5;
+  if (q_joint(n_joint) < -30 * D2R) {
+    torque_add(n_joint) += (-30. * D2R - q_joint(n_joint)) * 0.5;
   }
 
   n_joint = 3;
@@ -518,20 +466,19 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
 
   auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_pinch.urdf", "MA_Base"));
   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
-      {"MA_Base", "MA_Link_J1R", "MA_Link_J2R", "MA_Link_J3R", "MA_Link_J4R", "MA_Link_J5R", "MA_Link_J6R", "MA_Link_J7R", "MA_Link_J1L", "MA_Link_J2L",
-       "MA_Link_J3L", "MA_Link_J4L", "MA_Link_J5L", "MA_Link_J6L", "MA_Link_J7L"},
-      {"J1_Shoulder_Pitch", "J2_Shoulder_Roll", "J3_Shoulder_Yaw", "J4_Elbow_Pitch", "J4_Wrist_Yaw1",
-       "J5_Wrist_Pitch", "J6_Wrist_Yaw2", "J7_Shoulder_Pitch", "J8_Shoulder_Roll", "J9_Shoulder_Yaw",
-       "J10_Elbow", "J11_Wrist_Yaw1", "J12_Wrist_Pitch", "J13_Wrist_Yaw2"});
-
-
+      {"MA_Base", "MA_Link_J1R", "MA_Link_J2R", "MA_Link_J3R", "MA_Link_J4R", "MA_Link_J5R", "MA_Link_J6R",
+       "MA_Link_J7R", "MA_Link_J1L", "MA_Link_J2L", "MA_Link_J3L", "MA_Link_J4L", "MA_Link_J5L", "MA_Link_J6L",
+       "MA_Link_J7L"},
+      {"J1_Shoulder_Pitch", "J2_Shoulder_Roll", "J3_Shoulder_Yaw", "J4_Elbow_Pitch", "J4_Wrist_Yaw1", "J5_Wrist_Pitch",
+       "J6_Wrist_Yaw2", "J7_Shoulder_Pitch", "J8_Shoulder_Roll", "J9_Shoulder_Yaw", "J10_Elbow", "J11_Wrist_Yaw1",
+       "J12_Wrist_Pitch", "J13_Wrist_Yaw2"});
 
   state->SetGravity({0, 0, 0, 0, 0, -9.81});
 
   Eigen::Matrix<double, 14, 1> q_joint, tau_joint;
   Eigen::Matrix<int, 14, 1> operation_mode, torque_enable;
   std::vector<std::optional<std::pair<int, int>>> button_status_vector;
-  
+
   q_joint.setZero();
   tau_joint.setZero();
 
@@ -540,6 +487,9 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
   temp_eigen.setZero();
   button_info.setZero();
 
+  std::vector<double> Trigger(2, 0.0);
+  std::vector<double> normalized_triggers(2, 0.0);
+  std::vector<double> last_valid_trigger(2, -1.0);
 
   {
     std::vector<std::pair<int, int>> id_and_mode_vector;
@@ -551,33 +501,52 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
         id_torque_onoff_vector.push_back(id);
       }
     }
-    GroupSyncWriteTorqueEnable(id_torque_onoff_vector, 0);
-    GroupSyncWriteOperatingMode(id_and_mode_vector);
+    BulkWriteTorqueEnable(portHandler, packetHandler, id_torque_onoff_vector, 0);
+    BulkWriteOperationMode(portHandler, packetHandler, id_and_mode_vector);
   }
 
+  const long period = 25;  // ms
+  auto next_time = std::chrono::steady_clock::now();
+
+  operation_mode.setConstant(-1);
+  torque_enable.setZero();
+
   while (running) {
+    auto current_time = std::chrono::steady_clock::now();
+    while (next_time < current_time) {
+      next_time += std::chrono::milliseconds(period);
+    }
+    std::this_thread::sleep_until(next_time);
+
     auto start = std::chrono::steady_clock::now();
 
     button_status_vector.clear();
-    operation_mode.setConstant(-1);
-    torque_enable.setZero();
     temp_eigen.setConstant(-1);
 
     for (int id : activeIDs) {
       if (id == 0x80 || id == 0x81) {
-        // for hand board
-        std::optional<std::pair<int, int>> temp_button_status =
-            ReadButtonStatus(portHandler, packetHandler, id);
-        button_status_vector.push_back(temp_button_status);
+        //for hand board
+        std::optional<std::pair<int, int>> temp_button_status = ReadButtonStatus(portHandler, packetHandler, id);
+        if (temp_button_status.has_value()) {
+          button_status_vector.push_back(temp_button_status);
+        }
       }
     }
 
-    std::optional<std::vector<std::pair<int, double>>> temp_q_joint_vector = GroupFastSyncReadEncoder(activeIDs);
+    std::optional<std::vector<std::pair<int, double>>> temp_q_joint_vector =
+        BulkReadEncoder(portHandler, packetHandler, activeIDs);
 
     if (temp_q_joint_vector.has_value()) {
-      for (auto const& ret : temp_q_joint_vector.value()) {
-        q_joint(ret.first) = ret.second;
+      for (const auto& [id, val] : temp_q_joint_vector.value()) {
+        if (id >= 130 && id <= 131) {
+          Trigger[id - 130] = val;
+        } else if (id < 16) {
+          q_joint(id) = val;
+        }
       }
+    } else {
+      // std::cerr << "[ERROR] Failed to read 'BulkReadEncoder'" << std::endl;
+      continue;
     }
 
     tau_joint = ComputeGravityTorque(robot, state, q_joint) * m_sf;
@@ -591,48 +560,65 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
       q_joint_ma = q_joint;
     }
 
-    auto temp_operation_mode_vector = GroupFastSyncReadOperatingMode(activeIDs, true);   
-    
+    std::this_thread::sleep_for(1ms);
+    auto temp_operation_mode_vector = BulkReadOperationMode(portHandler, packetHandler, activeIDs);
     if (temp_operation_mode_vector.has_value()) {
       for (auto const& ret : temp_operation_mode_vector.value()) {
-        operation_mode(ret.first) = ret.second;
+        if (ret.first < 14) {
+          operation_mode(ret.first) = ret.second;
+        }
       }
+    } else {
+      // std::cerr << "[WARN] Failed to read 'BulkReadOperationMode'" << std::endl;
+      // continue;
     }
 
-    auto temp_torque_enable_vector = GroupFastSyncReadTorqueEnable(activeIDs);     
-
+    std::this_thread::sleep_for(1ms);
+    auto temp_torque_enable_vector = BulkReadTorqueEnable(portHandler, packetHandler, activeIDs);
     if (temp_torque_enable_vector.has_value()) {
       for (auto const& ret : temp_torque_enable_vector.value()) {
-        torque_enable(ret.first) = ret.second;
+        if (ret.first < 14) {
+          torque_enable(ret.first) = ret.second;
+        }
       }
+    } else {
+      // std::cerr << "[WARN] Failed to read 'BulkReadTorqueEnable'" << std::endl;
+      // continue;
     }
 
     std::vector<std::pair<int, int>> id_and_enable_vector;
     for (auto const& id : activeIDs) {
-      if (!torque_enable(id)) {
-        id_and_enable_vector.push_back(std::make_pair(id, 1));
+      if (id < 14) {
+        if (!torque_enable(id)) {
+          id_and_enable_vector.push_back(std::make_pair(id, 1));
+        }
       }
     }
-    
-    GroupSyncWriteTorqueEnable(id_and_enable_vector);   
+
+    BulkWriteTorqueEnable(portHandler, packetHandler, id_and_enable_vector);
 
     std::vector<std::pair<int, int>> id_and_mode_vector;
     std::vector<int> id_torque_onoff_vector;
     std::vector<std::pair<int, double>> id_send_torque_vector;
-    std::vector<std::pair<int, double>> id_send_position_vector;
-    
-    std::vector<double> normalized_triggers(2, 0.0);  // [0] for ID 130, [1] for ID 131
-    std::array<int, 2> ids = {130, 131};
 
     auto normalize = [](double val, double min, double max) -> double {
-        return std::clamp((val - min) / (max - min), 0.0, 1.0);   // 0.0 ~ 1.0 로 정규화
+      return std::clamp((val - min) / (max - min), 0.0, 1.0);
     };
+    std::array<int, 2> ids = {130, 131};
 
     for (size_t i = 0; i < ids.size(); ++i) {
-        if (auto val = ReadEncoder(portHandler, packetHandler, ids[i]); val.has_value()) {
-            double raw = normalize(val.value(), 2.4, 3.3);    // 닫았을 때 : 2.4(약 130°) , 열었을 때 : 3.2 (약 190°)
-            normalized_triggers[i] = raw;
+      double val = Trigger[i];
+      if (val >= 2.3 && val <= 3.4) {
+        double raw = normalize(val, 2.4, 3.3);
+        normalized_triggers[i] = raw;
+        last_valid_trigger[i] = raw;
+      } else {
+        if (last_valid_trigger[i] >= 0.0) {
+          normalized_triggers[i] = last_valid_trigger[i];
+        } else {
+          normalized_triggers[i] = 0.0;
         }
+      }
     }
 
     for (auto& button_status : button_status_vector) {
@@ -649,21 +635,19 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
           hand_controller_button(id_hand_controlelr - 0x80) = button;
           hand_controller_trigger(0) = normalized_triggers[0];
           hand_controller_trigger(1) = normalized_triggers[1];
-
         }
 
         if (id_hand_controlelr == 0x80) {
           // right arm
           for (int id = 0; id < 7; id++) {
-            // std::map<int, bool> id_pos_init_flag; 
+
             if (button == 0) {
               // position control
               if (operation_mode(id) != CURRENT_BASED_POSITION_CONTROL_MODE) {
                 id_and_mode_vector.push_back(std::make_pair(id, CURRENT_BASED_POSITION_CONTROL_MODE));
                 id_torque_onoff_vector.push_back(id);
               }
-            } 
-            else if (button == 1) {
+            } else if (button == 1) {
               // current control
               if (operation_mode(id) != CURRENT_CONTROL_MODE) {
                 id_and_mode_vector.push_back(std::make_pair(id, CURRENT_CONTROL_MODE));
@@ -677,14 +661,14 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
 
         if (id_hand_controlelr == 0x81) {
           //left arm
-          for (int id = 7; id < 7 + 7; id++) {      
+          for (int id = 7; id < 7 + 7; id++) {
 
-             if (button == 0) {
+            if (button == 0) {
               // position control
               if (operation_mode(id) != CURRENT_BASED_POSITION_CONTROL_MODE) {
                 id_and_mode_vector.push_back(std::make_pair(id, CURRENT_BASED_POSITION_CONTROL_MODE));
                 id_torque_onoff_vector.push_back(id);
-              } 
+              }
             } else if (button == 1) {
               // current control
               if (operation_mode(id) != CURRENT_CONTROL_MODE) {
@@ -696,18 +680,19 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
             }
           }
         }
-      }   
+      }
     }
 
-    GroupSyncWriteTorqueEnable(id_torque_onoff_vector, 0);      
-    GroupSyncWriteOperatingMode(id_and_mode_vector);
-    GroupSyncWriteTorqueEnable(id_torque_onoff_vector, 1);
+    BulkWriteTorqueEnable(portHandler, packetHandler, id_torque_onoff_vector, 0);
+    BulkWriteOperationMode(portHandler, packetHandler, id_and_mode_vector);
+    BulkWriteTorqueEnable(portHandler, packetHandler, id_torque_onoff_vector, 1);
 
-    GroupSyncWriteSendTorque(id_send_torque_vector);
+    BulkWriteSendTorque(portHandler, packetHandler, id_send_torque_vector);
 
     static int cnt = 0;
     if (ma_info_verbose) {
       if (cnt++ % 5 == 0) {
+
         std::cout << "button_info : " << button_info.transpose() << std::endl;
         std::cout << "trigger_info : " << hand_controller_trigger.transpose() << std::endl;
         std::cout << "right q_joint [deg]: " << q_joint.block(0, 0, 7, 1).transpose() * 180. / 3.141592 << std::endl;
@@ -722,9 +707,9 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
       }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
- std::cout << "Master arm control loop exiting..." << std::endl;
+  std::cout << "Master arm control loop exiting..." << std::endl;
 }
 
 void control_loop_for_gripper(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
@@ -875,7 +860,7 @@ int main(int argc, char** argv) {
     std::cerr << e.what() << std::endl;
     return 1;
   }
- 
+
   if (argc < 2) {
     std::cerr << "Usage: " << argv[0] << " <server address> <servo> <mode>" << std::endl;
     return 1;
@@ -885,25 +870,25 @@ int main(int argc, char** argv) {
   std::string servo = "^(?!.*head).*";    // default = All servos on, except 'head'
   std::string control_mode = "position";  // default = position
 
-if (argc == 3) {
-  std::string arg2 = argv[2];
-  if (arg2 == "position" || arg2 == "impedance") {
-    control_mode = arg2;
-  } else {
-    servo = arg2;
-  }
-} else if (argc == 4) {
-  servo = argv[2];
-  control_mode = argv[3];
-  if (control_mode != "position" && control_mode != "impedance") {
-    std::cerr << "Invalid mode. Use 'position' or 'impedance'." << std::endl;
+  if (argc == 3) {
+    std::string arg2 = argv[2];
+    if (arg2 == "position" || arg2 == "impedance") {
+      control_mode = arg2;
+    } else {
+      servo = arg2;
+    }
+  } else if (argc == 4) {
+    servo = argv[2];
+    control_mode = argv[3];
+    if (control_mode != "position" && control_mode != "impedance") {
+      std::cerr << "Invalid mode. Use 'position' or 'impedance'." << std::endl;
+      return 1;
+    }
+  } else if (argc > 4) {
+    std::cerr << "Too many arguments." << std::endl;
+    std::cerr << "Usage: " << argv[0] << " <server address> [servo] [mode]" << std::endl;
     return 1;
   }
-} else if (argc > 4) {
-  std::cerr << "Too many arguments." << std::endl;
-  std::cerr << "Usage: " << argv[0] << " <server address> [servo] [mode]" << std::endl;
-  return 1;
-}
 
   auto robot = rb::Robot<y1_model::A>::Create(address);
 
@@ -991,9 +976,6 @@ if (argc == 3) {
 
   const char* devicename_master_arm = "/dev/rby1_master_arm";
 
-  g_port_handler = dynamixel::PortHandler::getPortHandler(devicename_master_arm);
-  g_packet_handler = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
-
   dynamixel::PortHandler* portHandler = dynamixel::PortHandler::getPortHandler(devicename_master_arm);
   dynamixel::PacketHandler* packetHandler = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
 
@@ -1002,7 +984,7 @@ if (argc == 3) {
     return 1;
   }
 
-  if (!portHandler->setBaudRate(BAUDRATE)) {
+  if (!portHandler->setBaudRate(BAUDRATE_MASTER_ARM)) {
     std::cerr << "Failed to change the baudrate!" << std::endl;
     return 1;
   }
@@ -1050,8 +1032,7 @@ if (argc == 3) {
       TorqueEnable(portHandler, packetHandler, id, 1);
     }
   }
-  g_port_handler = portHandler;
-  g_packet_handler = packetHandler;
+
   std::thread master_arm_handler(control_loop_for_master_arm, portHandler, packetHandler, activeIDs);
 
   const char* devicename_gripper = "/dev/rby1_gripper";
@@ -1064,7 +1045,7 @@ if (argc == 3) {
     return 1;
   }
 
-  if (!portHandler_gripper->setBaudRate(BAUDRATE)) {
+  if (!portHandler_gripper->setBaudRate(BAUDRATE_GRIPPER)) {
     std::cerr << "Failed to change the baudrate!" << std::endl;
     return 1;
   }
@@ -1145,6 +1126,7 @@ if (argc == 3) {
     q_joint_ref_20x1 *= D2R;
 
     while (running) {
+
       {
         std::lock_guard<std::mutex> lg(mtx_q_joint_ma_info);
         {
@@ -1192,24 +1174,18 @@ if (argc == 3) {
       Eigen::Vector<double, 7> target_position_right = q_joint_ref.block(0, 0, 7, 1);
       Eigen::Vector<double, 7> acc_limit, vel_limit;
 
-
-
-      
       //=============Off set [Wrist Yaw]]===================//
       // const double offset_rad = 1.57079632679;
-          
-      // target_position_left(6)  -= offset_rad;
+
+      // target_position_left(6) -= offset_rad;
       // target_position_right(6) += offset_rad;
 
       // double joint_limit_rad = 130.0 * M_PI / 180.0;
-      // target_position_left(6)  = std::clamp(target_position_left(6),  -joint_limit_rad, 0.0);
+      // target_position_left(6) = std::clamp(target_position_left(6), -joint_limit_rad, 0.0);
       // target_position_right(6) = std::clamp(target_position_right(6), 0.0, joint_limit_rad);
-      
+
       //=============Off set [Wrist Yaw]]===================//
-      
 
-
-      
       acc_limit.setConstant(3600.0);
       acc_limit *= D2R;
 
@@ -1223,7 +1199,7 @@ if (argc == 3) {
 
       left_arm_minimum_time *= 0.99;
       left_arm_minimum_time = std::max(left_arm_minimum_time, 0.01);
-        if (control_mode == "position") {
+      if (control_mode == "position") {
         command_builder.SetCommand(ComponentBasedCommandBuilder().SetBodyCommand(
             BodyComponentBasedCommandBuilder()
                 .SetLeftArmCommand(JointPositionCommandBuilder()
@@ -1260,7 +1236,7 @@ if (argc == 3) {
                                         .SetDampingRatio(IMPEDANCE_DAMPING_RATIO)
                                         .SetTorqueLimit(Eigen::Vector<double, 7>::Constant(IMPEDANCE_TORQUE_LIMIT)))));
       }
-        
+
       stream->SendCommand(command_builder);
 
       std::this_thread::sleep_for(5ms);
