@@ -14,6 +14,8 @@
 #include <mutex>
 #include <thread>
 #include "dynamixel_sdk.h"
+#include <yaml-cpp/yaml.h>
+
 
 #include "rby1-sdk/base/dynamixel_bus.h"
 #include "rby1-sdk/dynamics/robot.h"
@@ -60,7 +62,7 @@ const std::string kAll = ".*";
 
 std::atomic<bool> running(true);
 
-double m_sf = 0.4;
+double m_sf;
 
 using namespace rb::dyn;
 using namespace rb;
@@ -70,6 +72,10 @@ using namespace rb;
 
 std::mutex mtx_q_joint_ma_info;
 Eigen::Matrix<double, 14, 1> q_joint_ma = Eigen::Matrix<double, 14, 1>::Zero();
+Eigen::Matrix<double, 14, 1> q_joint_rby1_14x1{25, -15, 0, -120, 0, 75, 0,   25, 15, 0, -120, 0, 75, 0};
+
+bool ma_master_mode = false;
+double init_cnt = 0.;
 
 std::mutex mtx_hand_controller_info;
 Eigen::Matrix<double, 2, 1> hand_controller_trigger = Eigen::Matrix<double, 2, 1>::Constant(0.5);
@@ -83,6 +89,17 @@ bool ma_info_verbose = false;
 
 std::vector<double> torque_constant = {1.6591, 1.6591, 1.6591, 1.3043, 1.3043, 1.3043, 0.95,
                                        1.6591, 1.6591, 1.6591, 1.3043, 1.3043, 1.3043, 0.95};
+
+struct JointLimit {
+    int joint_index;   
+    double min_deg;    
+    double max_deg;
+    double scale;
+
+    double min_rad() const { return min_deg * M_PI / 180.0; }
+    double max_rad() const { return max_deg * M_PI / 180.0; }
+};
+
 
 void signalHandler(int signum) {
     std::cout << "\nCtrl-C detected! Stopping..." << std::endl;
@@ -415,107 +432,47 @@ Eigen::Matrix<double, 14, 1> ComputeGravityTorque(std::shared_ptr<rb::dyn::Robot
   return state->GetTau();  // / unit [Nm]
 }
 
-Eigen::Matrix<double, 14, 1> calc_torque_for_limit_avoid(Eigen::Matrix<double, 14, 1> q_joint) {
+Eigen::VectorXd calc_torque_for_limit_avoid(
+    const Eigen::VectorXd& q,
+    const std::unordered_map<int, JointLimit>& joint_limits)
+{
+    const int DOF = q.size();
+    Eigen::VectorXd torque = Eigen::VectorXd::Zero(DOF);
 
-  Eigen::Matrix<double, 14, 1> torque_add;
-  torque_add.setZero();
+    for (const auto& [index, limit] : joint_limits) {
+        double q_val = q(index);
 
-  int arm_dof = 7;
+        // 범위 이탈 양방향 처리
+        if (q_val < limit.min_rad()) {
+            double diff = limit.min_rad() - q_val;
+            torque(index) += +limit.scale * diff;
+        }
+        if (q_val > limit.max_rad()) {
+            double diff = q_val - limit.max_rad();
+            torque(index) += -limit.scale * diff;
+        }
+    }
 
-  int n_joint = 1;
-  if (q_joint(n_joint) > -10. * D2R) {
-    torque_add(n_joint) += (-10. * D2R - q_joint(n_joint)) * 4.;
-  }
+    // 1. 토크 제한 상수 적용
+    Eigen::VectorXd torque_limit = Eigen::VectorXd::Constant(DOF, 300.0 / 1000.0);
+    torque_limit(5) = 500.0 / 1000.0;
+    torque_limit(12) = 500.0 / 1000.0;
+    
+    // 2. 클램핑
+    for (int i = 0; i < DOF; ++i) {
+        torque(i) = std::clamp(torque(i), -torque_limit(i), torque_limit(i));
+    }
 
-  n_joint = arm_dof + 1;
-  if (q_joint(n_joint) < 10. * D2R) {
-    torque_add(n_joint) += (10. * D2R - q_joint(n_joint)) * 4.;
-  }
+    // 3. 토크 상수 적용
+    for (int i = 0; i < DOF; ++i) {
+        torque(i) *= torque_constant[i];
+    }
 
-  n_joint = 2;
-  if (q_joint(n_joint) > 90 * D2R) {
-    torque_add(n_joint) += (90. * D2R - q_joint(n_joint)) * 0.5;
-  }
-  if (q_joint(n_joint) < 0) {
-    torque_add(n_joint) += (0. - q_joint(n_joint)) * 0.5;
-  }
-
-  n_joint = arm_dof + 2;
-  if (q_joint(n_joint) < -90 * D2R) {
-    torque_add(n_joint) += (-90. * D2R - q_joint(n_joint)) * 0.5;
-  }
-  if (q_joint(n_joint) > 0) {
-    torque_add(n_joint) += (0. - q_joint(n_joint)) * 0.5;
-  }
-
-  n_joint = 5;
-  if (q_joint(n_joint) > 90 * D2R) {
-    torque_add(n_joint) += (90. * D2R - q_joint(n_joint)) * 1.;
-  }
-  if (q_joint(n_joint) < 0. * D2R) {
-    torque_add(n_joint) += (0. * D2R - q_joint(n_joint)) * 1.;
-  }
-
-  n_joint = arm_dof + 5;
-  if (q_joint(n_joint) > 90 * D2R) {
-    torque_add(n_joint) += (90. * D2R - q_joint(n_joint)) * 1.;
-  }
-  if (q_joint(n_joint) < 0. * D2R) {
-    torque_add(n_joint) += (0. * D2R - q_joint(n_joint)) * 1.;
-  }
-
-  n_joint = 4;
-  if (q_joint(n_joint) > 10 * D2R) {
-    torque_add(n_joint) += (10. * D2R - q_joint(n_joint)) * 0.5;
-  }
-  if (q_joint(n_joint) < -10 * D2R) {
-    torque_add(n_joint) += (-10. * D2R - q_joint(n_joint)) * 0.5;
-  }
-
-  n_joint = arm_dof + 4;
-  if (q_joint(n_joint) > 10 * D2R) {
-    torque_add(n_joint) += (10. * D2R - q_joint(n_joint)) * 0.5;
-  }
-  if (q_joint(n_joint) < -10 * D2R) {
-    torque_add(n_joint) += (-10. * D2R - q_joint(n_joint)) * 0.5;
-  }
-
-  n_joint = 3;
-  if (q_joint(n_joint) < -135. * D2R) {
-    torque_add(n_joint) += (-135. * D2R - q_joint(n_joint)) * 6.;
-  }
-
-  if (q_joint(n_joint) > -20. * D2R) {
-    torque_add(n_joint) += (-20. * D2R - q_joint(n_joint)) * 6.;
-  }
-
-  n_joint = arm_dof + 3;
-  if (q_joint(n_joint) < -135. * D2R) {
-    torque_add(n_joint) += (-135. * D2R - q_joint(n_joint)) * 6.;
-  }
-
-  if (q_joint(n_joint) > -20. * D2R) {
-    torque_add(n_joint) += (-20. * D2R - q_joint(n_joint)) * 6.;
-  }
-
-  Eigen::Matrix<double, 14, 1> torque_add_limit;
-  torque_add_limit.setConstant(300. / 1000.);
-
-  torque_add_limit(5) = 500. / 1000.;
-  torque_add_limit(arm_dof + 5) = 500 / 1000.;
-
-  torque_add = torque_add.cwiseMin(torque_add_limit);
-  torque_add = torque_add.cwiseMax(-torque_add_limit);
-
-  for (int i = 0; i < 14; i++) {
-    torque_add(i) *= torque_constant[i];
-  }
-
-  return torque_add;
+    return torque;
 }
 
 void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel::PacketHandler* packetHandler,
-                                 std::vector<int> activeIDs) {
+                                 std::vector<int> activeIDs, const std::unordered_map<int, JointLimit>& joint_limits) {
 
   auto robot = std::make_shared<rb::dyn::Robot<14>>(LoadRobotFromURDF(MODEL_PATH "/master_arm_basic.urdf", "Base"));
   auto state = robot->MakeState<std::vector<std::string>, std::vector<std::string>>(
@@ -533,6 +490,7 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
   
   q_joint.setZero();
   tau_joint.setZero();
+  q_joint_rby1_14x1 = q_joint_rby1_14x1 * D2R ;
 
   Eigen::Matrix<double, 14, 1> temp_eigen;
   Eigen::Matrix<double, 2, 1> button_info, trigger_info;
@@ -581,7 +539,8 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
 
     tau_joint = ComputeGravityTorque(robot, state, q_joint) * m_sf;
 
-    Eigen::Matrix<double, 14, 1> add_torque = calc_torque_for_limit_avoid(q_joint);
+   Eigen::Matrix<double, 14, 1> add_torque = calc_torque_for_limit_avoid(q_joint, joint_limits);
+
 
     tau_joint = tau_joint + add_torque;
 
@@ -618,7 +577,72 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
     std::vector<std::pair<int, int>> id_and_mode_vector;
     std::vector<int> id_torque_onoff_vector;
     std::vector<std::pair<int, double>> id_send_torque_vector;
+    std::vector<std::pair<int, double>> id_and_q_vector;
 
+    int ma_master_mode_trigger = -2;
+    for (auto& button_status : button_status_vector) {
+
+      if (button_status.has_value()) {
+        int id_hand_controlelr = button_status.value().first;
+        std::pair<int, int> temp_button_status = button_status.value().second;
+        int button = temp_button_status.first;
+        ma_master_mode_trigger += button;
+        // std::cout<<"eeee"<<std::endl;
+      }
+    }
+    // std::cout<<"ma_master_mode_trigger: "<<ma_master_mode_trigger<<std::endl;
+    if (ma_master_mode_trigger == 0) {
+      ma_master_mode = true;
+      init_cnt = 0;
+    }
+
+    if (!ma_master_mode) {
+      Eigen::Vector<double, 14> temp_q;
+
+      {
+        std::lock_guard<std::mutex> lg(mtx_q_joint_ma_info);
+
+        init_cnt += 0.001;
+
+        if (init_cnt > 1) {
+          init_cnt = 1.;
+        }
+
+        temp_q = q_joint_rby1_14x1 * init_cnt + q_joint_ma * (1. - init_cnt);
+        // std::cout << "temp_q = " << temp_q.transpose() << std::endl;
+      }
+      // right arm
+      for (int id = 0; id < 7; id++) {
+        // position control
+        if (operation_mode(id) != CURRENT_BASED_POSITION_CONTROL_MODE) {
+          id_and_mode_vector.push_back(std::make_pair(id, CURRENT_BASED_POSITION_CONTROL_MODE));
+          id_torque_onoff_vector.push_back(id);
+          id_and_q_vector.push_back(std::make_pair(id, temp_q(id)));
+        } else {
+          id_and_q_vector.push_back(std::make_pair(id, temp_q(id)));
+        }
+      }
+
+      //left arm
+      for (int id = 7; id < 7 + 7; id++) {
+        // position control
+        if (operation_mode(id) != CURRENT_BASED_POSITION_CONTROL_MODE) {
+          id_and_mode_vector.push_back(std::make_pair(id, CURRENT_BASED_POSITION_CONTROL_MODE));
+          id_torque_onoff_vector.push_back(id);
+          id_and_q_vector.push_back(std::make_pair(id, temp_q(id)));
+        } else {
+          id_and_q_vector.push_back(std::make_pair(id, temp_q(id)));
+        }
+      }
+
+      GroupSyncWriteTorqueEnable(id_torque_onoff_vector, 0);
+      GroupSyncWriteOperatingMode(id_and_mode_vector);
+      GroupSyncWriteTorqueEnable(id_torque_onoff_vector, 1);
+
+      GroupSyncWriteSendPosition(id_and_q_vector);
+    }
+
+    else {
     for (auto& button_status : button_status_vector) {
 
       if (button_status.has_value()) {
@@ -691,7 +715,7 @@ void control_loop_for_master_arm(dynamixel::PortHandler* portHandler, dynamixel:
     GroupSyncWriteTorqueEnable(id_torque_onoff_vector, 1);
 
     GroupSyncWriteSendTorque(id_send_torque_vector);
-
+    }
     static int cnt = 0;
     if (ma_info_verbose) {
       if (cnt++ % 5 == 0) {
@@ -782,7 +806,7 @@ void control_loop_for_gripper(dynamixel::PortHandler* portHandler, dynamixel::Pa
       }
 
       if ((double)(abs(q_min_max_vector[id](MAX_INDEX) - q_min_max_vector[id](MIN_INDEX))) * 180 / 3.141592 <
-          540 * 0.9) {
+          320 * 0.7) {
         is_init = false;
       }
     }
@@ -853,6 +877,42 @@ void control_loop_for_gripper(dynamixel::PortHandler* portHandler, dynamixel::Pa
 int main(int argc, char** argv) {
 
   std::signal(SIGINT, signalHandler);
+  // Load YAML file
+  YAML::Node config = YAML::LoadFile("../cpp/config.yaml");  
+
+  m_sf = config["gravity_compensation_scale"].as<double>();
+
+  std::unordered_map<int, JointLimit> joint_limits;
+    for (const auto& node : config["joint_limits"]) {
+        int joint_idx = node["joint"].as<int>();
+        JointLimit limit;
+        limit.min_deg = node["min"].as<double>();
+        limit.max_deg = node["max"].as<double>();
+        limit.scale = node["scale"].as<double>();
+        joint_limits[joint_idx] = limit;
+    }
+
+
+
+    // std::vector<double>로 읽기
+    std::vector<double> vel_vec = config["angular_velocity_limit"].as<std::vector<double>>();
+    std::vector<double> acc_vec = config["angular_acceleration_limit"].as<std::vector<double>>();
+
+    // Eigen 벡터에 복사
+    Eigen::Vector<double, 7> vel_limit;
+    Eigen::Vector<double, 7> acc_limit;
+
+    for (int i = 0; i < 7; i++) {
+        vel_limit(i) = vel_vec[i];
+        acc_limit(i) = acc_vec[i];
+    }
+
+    std::cout << "gravity_compensation_scale: " << m_sf << std::endl;
+    std::cout << "vel_limit: " << vel_limit.transpose() << std::endl;
+    std::cout << "acc_limit: " << acc_limit.transpose() << std::endl;
+    
+    acc_limit *= D2R;
+    vel_limit *= D2R;
 
   try {
     // Latency timer setting
@@ -1039,7 +1099,7 @@ int main(int argc, char** argv) {
   }
   g_port_handler = portHandler;
   g_packet_handler = packetHandler;
-  std::thread master_arm_handler(control_loop_for_master_arm, portHandler, packetHandler, activeIDs);
+  std::thread master_arm_handler(control_loop_for_master_arm, portHandler, packetHandler, activeIDs, joint_limits);
 
   const char* devicename_gripper = "/dev/rby1_gripper";
 
@@ -1094,13 +1154,25 @@ int main(int argc, char** argv) {
 
     robot
         ->SendCommand(RobotCommandBuilder().SetCommand(
-            ComponentBasedCommandBuilder().SetBodyCommand(BodyComponentBasedCommandBuilder().SetTorsoCommand(
+            ComponentBasedCommandBuilder().SetBodyCommand(BodyComponentBasedCommandBuilder()
+            .SetTorsoCommand(
                 JointPositionCommandBuilder()
                     .SetCommandHeader(CommandHeaderBuilder().SetControlHoldTime(1.))
                     .SetMinimumTime(5)
-                    .SetPosition(Eigen::Vector<double, 6>{0, 30, -60, 30, 0, 0} * D2R)))))
+                    .SetPosition(Eigen::Vector<double, 6>{0, 30, -60, 30, 0, 0} * D2R))
+            .SetRightArmCommand(
+                JointPositionCommandBuilder()
+                    .SetCommandHeader(CommandHeaderBuilder().SetControlHoldTime(1.))
+                    .SetMinimumTime(5)
+                    .SetPosition(Eigen::Vector<double, 7>{45, -15, 0, -135, 0, 45, 0} * D2R))
+            .SetLeftArmCommand(
+                JointPositionCommandBuilder()
+                    .SetCommandHeader(CommandHeaderBuilder().SetControlHoldTime(1.))
+                    .SetMinimumTime(5)
+                    .SetPosition(Eigen::Vector<double, 7>{45, 15, 0, -135, 0, 45, 0} * D2R))                 
+          )))
         ->Get();
-
+    
     Eigen::Matrix<double, 14, 1> q_joint_ref;
     q_joint_ref.setZero();
 
@@ -1132,6 +1204,7 @@ int main(int argc, char** argv) {
     q_joint_ref_20x1 *= D2R;
 
     while (running) {
+      if(ma_master_mode){
       {
         std::lock_guard<std::mutex> lg(mtx_q_joint_ma_info);
         {
@@ -1177,13 +1250,13 @@ int main(int argc, char** argv) {
 
       Eigen::Vector<double, 7> target_position_left = q_joint_ref.block(7, 0, 7, 1);
       Eigen::Vector<double, 7> target_position_right = q_joint_ref.block(0, 0, 7, 1);
-      Eigen::Vector<double, 7> acc_limit, vel_limit;
+      // Eigen::Vector<double, 7> acc_limit, vel_limit;
 
-      acc_limit.setConstant(3600.0);
-      acc_limit *= D2R;
+      // acc_limit.setConstant(3600.0);
+      // acc_limit *= D2R;
 
-      vel_limit << 180, 180, 180, 180, 330, 330, 330;
-      vel_limit *= D2R;
+      // vel_limit << 180, 180, 180, 180, 330, 330, 330;
+      // vel_limit *= D2R;
 
       RobotCommandBuilder command_builder;
 
@@ -1192,6 +1265,7 @@ int main(int argc, char** argv) {
 
       left_arm_minimum_time *= 0.99;
       left_arm_minimum_time = std::max(left_arm_minimum_time, 0.01);
+      
       if (control_mode == "position") {
         command_builder.SetCommand(ComponentBasedCommandBuilder().SetBodyCommand(
             BodyComponentBasedCommandBuilder()
@@ -1234,6 +1308,7 @@ int main(int argc, char** argv) {
 
       std::this_thread::sleep_for(5ms);
     }
+   }
   }
 
   master_arm_handler.join();
