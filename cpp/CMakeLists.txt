@@ -1,19 +1,13 @@
-# add_executable(backpack-B
-#         backpack-B.cpp
-# )
-# target_link_libraries(backpack-B PUBLIC
-#         rby1-sdk::rby1-sdk
-#         DynamixelSDK
-# )
-# target_compile_definitions(backpack-B PUBLIC -DMODEL_PATH="${MODEL_PATH}")
 
 
 # 예제 목록 정의
 set(EXAMPLES
-    backpack-B
-    stand-B
-    stand-P
+backpack-B
+stand-B
+stand-P
 )
+
+find_package(yaml-cpp REQUIRED)
 
 # 각 예제마다 실행 파일 생성
 foreach(SRC IN LISTS EXAMPLES)
@@ -23,6 +17,7 @@ foreach(SRC IN LISTS EXAMPLES)
     )
     target_link_libraries(${EXECUTABLE_NAME} PRIVATE
         rby1-sdk::rby1-sdk
+        yaml-cpp
         DynamixelSDK
     )
     target_compile_definitions(${EXECUTABLE_NAME} PUBLIC
