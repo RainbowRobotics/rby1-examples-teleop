@@ -1,0 +1,69 @@
+gravity_compensation_scale: 0.5
+angular_acceleration_limit: 
+  - 3600
+  - 3600
+  - 3600
+  - 3600
+  - 3600
+  - 3600
+  - 3600 
+angular_velocity_limit:
+  - 180
+  - 180
+  - 180
+  - 180
+  - 330
+  - 330
+  - 330 
+
+
+joint_limits:
+  - joint: 1
+    min: -180    
+    max: 5    
+    scale: 4.0
+
+  - joint: 8
+    min: -5   
+    max: 180     
+    scale: 4.0
+
+  - joint: 2
+    min: -45
+    max: 10
+    scale: 0.5
+
+  - joint: 9
+    min: -10
+    max: 45
+    scale: 0.5
+
+  - joint: 3
+    min: -135
+    max: -20
+    scale: 6.0
+
+  - joint: 10
+    min: -135
+    max: -20
+    scale: 6.0
+
+  - joint: 4
+    min: -30
+    max: 30
+    scale: 0.5
+
+  - joint: 11
+    min: -30
+    max: 30
+    scale: 0.5
+
+  - joint: 5
+    min: 0
+    max: 90
+    scale: 1.0
+
+  - joint: 12
+    min: 0
+    max: 90
+    scale: 1.0
